@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Shared Itinerary – Traveloop</title>
+<meta name="description" content="View this shared travel itinerary on Traveloop."/>
+<link rel="stylesheet" href="css/style.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+</head>
+<body style="background:var(--bg)">
+<!-- Public nav -->
+<nav style="background:var(--bg2);border-bottom:1px solid var(--border);padding:.875rem 1.5rem;display:flex;align-items:center;justify-content:space-between">
+  <a href="index.html" class="logo-text" style="font-size:1.3rem;font-weight:800;background:linear-gradient(135deg,var(--primary),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;text-decoration:none">✈️ Traveloop</a>
+  <div class="flex gap-2">
+    <button class="btn btn-secondary btn-sm" onclick="copyLink()"><i class="fa-solid fa-link"></i> Copy Link</button>
+    <a href="index.html" class="btn btn-primary btn-sm">Sign In to Plan</a>
+  </div>
+</nav>
+
+<div class="container" style="padding-top:2rem;max-width:900px">
+  <div id="loading" style="text-align:center;padding:4rem">
+    <div style="font-size:3rem;animation:spin 1s linear infinite;display:inline-block">✈️</div>
+    <p class="text-muted mt-2">Loading itinerary…</p>
+  </div>
+  <div id="content" class="hidden page-enter"></div>
+</div>
+<div id="toast-container"></div>
+<script src="js/api.js"></script><script src="js/ui.js"></script>
+<script>
+const token=getParam('token');
+const typeIcons={sightseeing:'🏛️',food:'🍽️',adventure:'🏔️',culture:'🎭',shopping:'🛍️',nightlife:'🌙',nature:'🌿'};
+
+async function load(){
+  if(!token){ document.getElementById('loading').innerHTML='<p style="color:var(--red)">Invalid or expired link.</p>'; return; }
+  try{
+    const trip=await fetch(`http://localhost:5000/api/trips/public/${token}`).then(r=>r.json());
+    if(trip.message){ document.getElementById('loading').innerHTML=`<p style="color:var(--red)">${trip.message}</p>`; return; }
+    document.title=trip.name+' – Traveloop';
+    document.getElementById('loading').classList.add('hidden');
+    const c=document.getElementById('content');
+    c.classList.remove('hidden');
+
+    const totalCost=(trip.stops||[]).reduce((s,st)=>(st.activities||[]).reduce((ss,a)=>ss+parseFloat(a.cost||0),s),0);
+    c.innerHTML=`
+      ${trip.cover_photo?`<div style="border-radius:var(--radius);overflow:hidden;margin-bottom:2rem;height:280px"><img src="${trip.cover_photo}" style="width:100%;height:100%;object-fit:cover"/></div>`:''}
+      <div class="card card-body mb-3">
+        <div class="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <h1>${trip.name}</h1>
+            <p class="text-muted mt-1">${fmtDate(trip.start_date)} → ${fmtDate(trip.end_date)}</p>
+            ${trip.description?`<p class="mt-2">${trip.description}</p>`:''}
+          </div>
+          <div class="flex flex-col" style="gap:.5rem;text-align:right">
+            <span class="badge badge-orange" style="font-size:.9rem;padding:.4rem .9rem">✈️ By ${trip.author_name}</span>
+            <span class="badge badge-cyan" style="font-size:.9rem;padding:.4rem .9rem">📍 ${(trip.stops||[]).length} stops</span>
+            <span class="badge badge-green" style="font-size:.9rem;padding:.4rem .9rem">💲 ~₹${totalCost.toFixed(2)}</span>
+          </div>
+        </div>
+      </div>
+      <div class="timeline">
+        ${(trip.stops||[]).map(s=>`
+          <div class="timeline-item">
+            <div class="timeline-dot"></div>
+            <div class="timeline-card">
+              <div class="flex items-center justify-between mb-2">
+                <div>
+                  <div class="timeline-city">📍 ${s.city}${s.country?', '+s.country:''}</div>
+                  <div class="timeline-dates">${fmtDate(s.arrival_date)} → ${fmtDate(s.departure_date)}</div>
+                </div>
+                <span class="badge badge-orange">${(s.activities||[]).length} activities</span>
+              </div>
+              ${(s.activities||[]).map(a=>`
+                <div style="display:flex;align-items:center;gap:.75rem;padding:.6rem .75rem;background:var(--bg3);border-radius:var(--radius-sm);margin-bottom:.4rem">
+                  <span style="font-size:1.1rem">${typeIcons[a.type]||'📌'}</span>
+                  <div style="flex:1">
+                    <div style="font-weight:600;font-size:.9rem">${a.name}</div>
+                    <div class="text-muted text-xs">${a.time_of_day||'Anytime'} • ${a.duration} min • ₹${parseFloat(a.cost).toFixed(2)}</div>
+                  </div>
+                </div>`).join('')}
+              ${!(s.activities||[]).length?'<p class="text-muted text-sm">No activities listed</p>':''}
+            </div>
+          </div>`).join('')}
+      </div>
+      <div class="card card-body mt-3" style="text-align:center">
+        <p class="text-muted">Inspired by this itinerary?</p>
+        <a href="index.html" class="btn btn-primary mt-2">Create Your Own on Traveloop</a>
+      </div>`;
+  } catch(e){ document.getElementById('loading').innerHTML=`<p style="color:var(--red)">Could not load itinerary: ${e.message}</p>`; }
+}
+function copyLink(){ navigator.clipboard.writeText(location.href); showToast('Link copied!','success'); }
+load();
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+</script>
+</body>
+</html>

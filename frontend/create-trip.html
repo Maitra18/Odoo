@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Create Trip – Traveloop</title>
+<meta name="description" content="Create a new personalized travel plan with Traveloop."/>
+<link rel="stylesheet" href="css/style.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+</head>
+<body>
+<div class="page-wrap">
+  <div id="sidebar-mount"></div>
+  <main class="main-content page-enter" style="max-width:780px">
+    <div class="topbar">
+      <div class="topbar-title">
+        <h1>Create New Trip ✈️</h1>
+        <span class="topbar-sub">Fill in the details to kick off your adventure</span>
+      </div>
+    </div>
+
+    <div class="card card-body">
+      <form id="create-trip-form" onsubmit="handleCreate(event)">
+        <div class="flex flex-col gap-2">
+          <div class="form-group">
+            <label class="form-label">Trip Name *</label>
+            <input type="text" id="trip-name" placeholder="e.g. European Summer 2025" required maxlength="200"/>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Start Date</label>
+              <input type="date" id="start-date"/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">End Date</label>
+              <input type="date" id="end-date"/>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Description</label>
+            <textarea id="trip-desc" rows="4" placeholder="What's this trip about? Share your vision…"></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Cover Photo URL (optional)</label>
+            <input type="url" id="cover-photo" placeholder="https://images.unsplash.com/…"/>
+            <div id="cover-preview" style="margin-top:.5rem;display:none">
+              <img id="cover-img" style="width:100%;height:200px;object-fit:cover;border-radius:var(--radius)"/>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Visibility</label>
+            <select id="is-public">
+              <option value="0">🔒 Private – only you can see it</option>
+              <option value="1">🌐 Public – share with anyone</option>
+            </select>
+          </div>
+          <div id="form-error" class="alert alert-error hidden"></div>
+          <div class="flex gap-2" style="justify-content:flex-end;margin-top:.5rem">
+            <a href="my-trips.html" class="btn btn-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary" id="save-btn">
+              <i class="fa-solid fa-floppy-disk"></i> Save & Continue
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </main>
+</div>
+<div id="toast-container"></div>
+<script src="js/api.js"></script><script src="js/auth.js"></script><script src="js/ui.js"></script>
+<script>
+auth.requireAuth();
+document.getElementById('sidebar-mount').innerHTML = buildSidebar('create');
+
+document.getElementById('cover-photo').addEventListener('input', function() {
+  const v = this.value.trim();
+  const p = document.getElementById('cover-preview');
+  const i = document.getElementById('cover-img');
+  if (v) { i.src = v; p.style.display = 'block'; } else { p.style.display = 'none'; }
+});
+
+async function handleCreate(e) {
+  e.preventDefault();
+  const btn = document.getElementById('save-btn');
+  const err = document.getElementById('form-error');
+  err.classList.add('hidden');
+  const start = document.getElementById('start-date').value;
+  const end = document.getElementById('end-date').value;
+  if (start && end && end < start) {
+    err.textContent = 'End date must be after start date'; err.classList.remove('hidden'); return;
+  }
+  btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving…';
+  try {
+    const trip = await api.post('/trips', {
+      name: document.getElementById('trip-name').value,
+      start_date: start || null, end_date: end || null,
+      description: document.getElementById('trip-desc').value,
+      cover_photo: document.getElementById('cover-photo').value || null,
+      is_public: document.getElementById('is-public').value === '1',
+    });
+    showToast('Trip created!', 'success');
+    setTimeout(() => window.location.href = `itinerary-builder.html?id=${trip.id}`, 600);
+  } catch (ex) {
+    err.textContent = ex.message; err.classList.remove('hidden');
+    btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save & Continue';
+  }
+}
+</script>
+</body>
+</html>

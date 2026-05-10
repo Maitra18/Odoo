@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Admin Dashboard – Traveloop</title>
+<meta name="description" content="Admin analytics dashboard for Traveloop platform management."/>
+<link rel="stylesheet" href="css/style.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<div class="page-wrap">
+  <div id="sidebar-mount"></div>
+  <main class="main-content page-enter">
+    <div class="topbar">
+      <div class="topbar-title">
+        <h1>Admin Dashboard 📊</h1>
+        <span class="topbar-sub">Platform analytics and user management</span>
+      </div>
+      <div class="topbar-actions">
+        <span class="badge badge-red" style="font-size:.85rem;padding:.4rem .9rem"><i class="fa-solid fa-shield"></i> Admin Only</span>
+        <button class="btn btn-primary" onclick="loadStats()"><i class="fa-solid fa-rotate"></i> Refresh</button>
+      </div>
+    </div>
+
+    <!-- Stats row -->
+    <div class="grid grid-4 mb-3" id="admin-stats">
+      <div class="skeleton" style="height:90px"></div>
+      <div class="skeleton" style="height:90px"></div>
+      <div class="skeleton" style="height:90px"></div>
+      <div class="skeleton" style="height:90px"></div>
+    </div>
+
+    <div class="grid grid-2 mb-3">
+      <div class="card card-body">
+        <h3 class="mb-2">Activity Types Distribution</h3>
+        <div class="chart-wrap"><canvas id="act-chart"></canvas></div>
+      </div>
+      <div class="card card-body">
+        <h3 class="mb-2">Top 10 Cities</h3>
+        <div id="top-cities"></div>
+      </div>
+    </div>
+
+    <div class="card card-body">
+      <div class="flex items-center justify-between mb-2">
+        <h3>Recent Users</h3>
+        <span class="badge badge-cyan" id="user-count"></span>
+      </div>
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse" id="users-table">
+          <thead><tr style="border-bottom:1px solid var(--border)">
+            <th style="text-align:left;padding:.5rem;color:var(--text2);font-size:.85rem;font-weight:600">Name</th>
+            <th style="text-align:left;padding:.5rem;color:var(--text2);font-size:.85rem;font-weight:600">Email</th>
+            <th style="text-align:left;padding:.5rem;color:var(--text2);font-size:.85rem;font-weight:600">Role</th>
+            <th style="text-align:left;padding:.5rem;color:var(--text2);font-size:.85rem;font-weight:600">Joined</th>
+            <th></th>
+          </tr></thead>
+          <tbody id="users-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+<div id="toast-container"></div>
+<script src="js/api.js"></script><script src="js/auth.js"></script><script src="js/ui.js"></script>
+<script>
+auth.requireAuth();
+auth.requireAdmin();
+document.getElementById('sidebar-mount').innerHTML = buildSidebar('admin');
+let actChart=null;
+const typeColors={sightseeing:'#F97316',food:'#10B981',adventure:'#EF4444',culture:'#8B5CF6',shopping:'#06B6D4',nightlife:'#F59E0B',nature:'#22C55E'};
+
+async function loadStats(){
+  try{
+    const d=await api.get('/admin/stats');
+    document.getElementById('admin-stats').innerHTML=`
+      <div class="stat-card"><div class="stat-icon orange"><i class="fa-solid fa-users"></i></div><div><div class="stat-value">${d.total_users}</div><div class="stat-label">Total Users</div></div></div>
+      <div class="stat-card"><div class="stat-icon cyan"><i class="fa-solid fa-suitcase"></i></div><div><div class="stat-value">${d.total_trips}</div><div class="stat-label">Total Trips</div></div></div>
+      <div class="stat-card"><div class="stat-icon green"><i class="fa-solid fa-globe"></i></div><div><div class="stat-value">${d.public_trips}</div><div class="stat-label">Public Trips</div></div></div>
+      <div class="stat-card"><div class="stat-icon purple"><i class="fa-solid fa-compass"></i></div><div><div class="stat-value">${d.total_activities}</div><div class="stat-label">Activities</div></div></div>`;
+
+    // Activity type chart
+    if(actChart) actChart.destroy();
+    actChart=new Chart(document.getElementById('act-chart'),{
+      type:'bar',
+      data:{
+        labels:d.activity_types.map(x=>x.type),
+        datasets:[{data:d.activity_types.map(x=>x.count),backgroundColor:d.activity_types.map(x=>typeColors[x.type]||'#ccc'),borderRadius:6}]
+      },
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#94A3B8'}},y:{ticks:{color:'#94A3B8'},grid:{color:'rgba(255,255,255,.05)'}}}}
+    });
+
+    // Top cities
+    document.getElementById('top-cities').innerHTML=d.top_cities.map((c,i)=>`
+      <div class="flex items-center justify-between" style="padding:.5rem 0;border-bottom:1px solid var(--border)">
+        <div class="flex items-center gap-2">
+          <span style="color:var(--text3);font-size:.8rem;width:18px">${i+1}</span>
+          <span style="font-weight:600">📍 ${c.city}</span>
+        </div>
+        <span class="badge badge-orange">${c.count} trips</span>
+      </div>`).join('');
+
+    // Users table
+    document.getElementById('user-count').textContent=d.recent_users.length+' users';
+    document.getElementById('users-body').innerHTML=d.recent_users.map(u=>`
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:.6rem .5rem;font-weight:600">${u.name}</td>
+        <td style="padding:.6rem .5rem;font-size:.875rem;color:var(--text2)">${u.email}</td>
+        <td style="padding:.6rem .5rem"><span class="badge ${u.role==='admin'?'badge-red':'badge-cyan'}">${u.role}</span></td>
+        <td style="padding:.6rem .5rem;font-size:.875rem;color:var(--text2)">${fmtDate(u.created_at)}</td>
+        <td style="padding:.6rem .5rem;text-align:right">
+          ${u.role!=='admin'?`<button onclick="deleteUser(${u.id})" class="btn btn-danger btn-sm btn-icon"><i class="fa-solid fa-trash"></i></button>`:''}
+        </td>
+      </tr>`).join('');
+  } catch(e){ showToast(e.message,'error'); }
+}
+
+async function deleteUser(id){
+  if(!confirm('Delete this user and all their data?')) return;
+  try{ await api.delete(`/admin/users/${id}`); showToast('User deleted','success'); loadStats(); }
+  catch(e){ showToast(e.message,'error'); }
+}
+loadStats();
+</script>
+</body>
+</html>

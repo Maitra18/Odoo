@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Itinerary View – Traveloop</title>
+<meta name="description" content="View your full travel itinerary in timeline or list format."/>
+<link rel="stylesheet" href="css/style.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+</head>
+<body>
+<div class="page-wrap">
+  <div id="sidebar-mount"></div>
+  <main class="main-content page-enter">
+    <div class="topbar">
+      <div class="topbar-title">
+        <h1 id="view-title">Itinerary View 📋</h1>
+        <span class="topbar-sub" id="view-dates"></span>
+      </div>
+      <div class="topbar-actions">
+        <div class="tab-btns" style="margin:0;width:auto">
+          <button class="tab-btn active" id="btn-timeline" onclick="setView('timeline')">Timeline</button>
+          <button class="tab-btn" id="btn-list" onclick="setView('list')">List</button>
+        </div>
+        <a id="edit-link" href="#" class="btn btn-secondary"><i class="fa-solid fa-pen"></i> Edit</a>
+        <button onclick="shareTrip()" class="btn btn-cyan"><i class="fa-solid fa-share-nodes"></i> Share</button>
+      </div>
+    </div>
+
+    <!-- Cover photo -->
+    <div id="cover-hero" style="display:none;border-radius:var(--radius);overflow:hidden;margin-bottom:1.5rem;height:240px">
+      <img id="cover-img" style="width:100%;height:100%;object-fit:cover"/>
+    </div>
+
+    <div id="content"></div>
+  </main>
+</div>
+<div id="toast-container"></div>
+<script src="js/api.js"></script><script src="js/auth.js"></script><script src="js/ui.js"></script>
+<script>
+auth.requireAuth();
+document.getElementById('sidebar-mount').innerHTML = buildSidebar('');
+const tripId = getParam('id');
+if (!tripId) window.location.href = 'my-trips.html';
+document.getElementById('edit-link').href = `itinerary-builder.html?id=${tripId}`;
+let stops=[], currentView='timeline';
+const typeIcons={sightseeing:'🏛️',food:'🍽️',adventure:'🏔️',culture:'🎭',shopping:'🛍️',nightlife:'🌙',nature:'🌿'};
+
+async function load(){
+  try{
+    const trip=await api.get(`/trips/${tripId}`);
+    document.getElementById('view-title').textContent = trip.name;
+    document.getElementById('view-dates').textContent = fmtDate(trip.start_date)+' → '+fmtDate(trip.end_date);
+    if(trip.cover_photo){ document.getElementById('cover-img').src=trip.cover_photo; document.getElementById('cover-hero').style.display='block'; }
+    stops=await api.get(`/stops?trip_id=${tripId}`);
+    render();
+  } catch(e){ showToast(e.message,'error'); }
+}
+
+function setView(v){
+  currentView=v;
+  document.getElementById('btn-timeline').classList.toggle('active',v==='timeline');
+  document.getElementById('btn-list').classList.toggle('active',v==='list');
+  render();
+}
+
+function render(){
+  const c=document.getElementById('content');
+  if(!stops.length){ c.innerHTML='<div class="card card-body" style="text-align:center;padding:3rem"><div style="font-size:3rem">📍</div><h3 class="mt-2">No stops added yet</h3><a href="itinerary-builder.html?id='+tripId+'" class="btn btn-primary mt-3">Build Itinerary</a></div>'; return; }
+  if(currentView==='timeline') c.innerHTML = renderTimeline();
+  else c.innerHTML = renderList();
+}
+
+function renderTimeline(){
+  return `<div class="timeline">${stops.map(s=>`
+    <div class="timeline-item">
+      <div class="timeline-dot"></div>
+      <div class="timeline-card">
+        <div class="flex items-center justify-between mb-2">
+          <div>
+            <div class="timeline-city">📍 ${s.city}${s.country?', '+s.country:''}</div>
+            <div class="timeline-dates">${fmtDate(s.arrival_date)} → ${fmtDate(s.departure_date)}</div>
+          </div>
+          <span class="badge badge-orange">${(s.activities||[]).length} activities</span>
+        </div>
+        ${(s.activities||[]).map(a=>`
+          <div style="display:flex;align-items:center;gap:.75rem;padding:.6rem .75rem;background:var(--bg3);border-radius:var(--radius-sm);margin-bottom:.4rem">
+            <span style="font-size:1.1rem">${typeIcons[a.type]||'📌'}</span>
+            <div style="flex:1"><div style="font-weight:600;font-size:.9rem">${a.name}</div>
+            <div class="text-muted text-xs">${a.time_of_day||'Anytime'} • ${a.duration} min • ₹${parseFloat(a.cost).toFixed(2)}</div></div>
+          </div>`).join('')}
+        ${!(s.activities||[]).length?'<p class="text-muted text-sm">No activities added</p>':''}
+      </div>
+    </div>`).join('')}</div>`;
+}
+
+function renderList(){
+  return stops.map(s=>`
+    <div class="card card-body mb-2">
+      <div class="flex items-center justify-between mb-2">
+        <h3>📍 ${s.city}${s.country?', '+s.country:''}</h3>
+        <span class="text-muted text-sm">${fmtDate(s.arrival_date)} → ${fmtDate(s.departure_date)}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.75rem">
+        ${(s.activities||[]).map(a=>`
+          <div style="background:var(--bg3);border-radius:var(--radius-sm);padding:.75rem">
+            <div style="font-size:1.3rem">${typeIcons[a.type]||'📌'}</div>
+            <div style="font-weight:600;margin-top:.25rem">${a.name}</div>
+            <div class="text-muted text-xs mt-1">${a.duration} min • ₹${parseFloat(a.cost).toFixed(2)}</div>
+          </div>`).join('')}
+        ${!(s.activities||[]).length?'<p class="text-muted text-sm">No activities added</p>':''}
+      </div>
+    </div>`).join('');
+}
+
+async function shareTrip(){
+  try{
+    const trip=await api.get(`/trips/${tripId}`);
+    if(!trip.is_public){ showToast('Make the trip public first in Edit','info'); return; }
+    const url=`${location.origin}/shared-itinerary.html?token=${trip.public_token}`;
+    await navigator.clipboard.writeText(url);
+    showToast('Share link copied!','success');
+  } catch(e){ showToast('Could not copy link','error'); }
+}
+load();
+</script>
+</body>
+</html>

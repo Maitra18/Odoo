@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Packing List – Traveloop</title>
+<meta name="description" content="Manage your packing checklist for each trip with Traveloop."/>
+<link rel="stylesheet" href="css/style.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+</head>
+<body>
+<div class="page-wrap">
+  <div id="sidebar-mount"></div>
+  <main class="main-content page-enter">
+    <div class="topbar">
+      <div class="topbar-title">
+        <h1>Packing Checklist 🧳</h1>
+        <span class="topbar-sub">Make sure you never forget anything</span>
+      </div>
+      <div class="topbar-actions">
+        <select id="trip-select" onchange="loadItems()" style="min-width:200px;padding:.6rem 1rem">
+          <option value="">— Select Trip —</option>
+        </select>
+        <button class="btn btn-secondary" onclick="resetAll()"><i class="fa-solid fa-rotate-left"></i> Reset</button>
+        <button class="btn btn-primary" onclick="openAddModal()"><i class="fa-solid fa-plus"></i> Add Item</button>
+      </div>
+    </div>
+
+    <!-- Progress bar -->
+    <div id="progress-section" class="card card-body mb-3 hidden">
+      <div class="flex items-center justify-between mb-1">
+        <span style="font-weight:600">Packing Progress</span>
+        <span id="progress-label" style="font-weight:700;color:var(--primary)">0%</span>
+      </div>
+      <div style="background:var(--bg3);border-radius:999px;height:10px;overflow:hidden">
+        <div id="progress-bar" style="height:100%;background:linear-gradient(90deg,var(--primary),var(--cyan));border-radius:999px;transition:width .4s ease;width:0%"></div>
+      </div>
+    </div>
+
+    <div id="items-container"></div>
+  </main>
+</div>
+
+<!-- Add Item Modal -->
+<div class="modal-overlay" id="add-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Add Packing Item</h3>
+      <button class="modal-close" onclick="closeAddModal()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="flex flex-col gap-2">
+      <div class="form-group"><label class="form-label">Item Name *</label><input id="item-name" placeholder="e.g. Passport"/></div>
+      <div class="form-group">
+        <label class="form-label">Category</label>
+        <select id="item-cat">
+          <option value="documents">📄 Documents</option>
+          <option value="clothing">👕 Clothing</option>
+          <option value="electronics">💻 Electronics</option>
+          <option value="toiletries">🧴 Toiletries</option>
+          <option value="medicine">💊 Medicine</option>
+          <option value="misc">📦 Misc</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeAddModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveItem()"><i class="fa-solid fa-floppy-disk"></i> Add</button>
+    </div>
+  </div>
+</div>
+<div id="toast-container"></div>
+<script src="js/api.js"></script><script src="js/auth.js"></script><script src="js/ui.js"></script>
+<script>
+auth.requireAuth();
+document.getElementById('sidebar-mount').innerHTML = buildSidebar('packing');
+const catIcons={documents:'📄',clothing:'👕',electronics:'💻',toiletries:'🧴',medicine:'💊',misc:'📦'};
+let allItems=[];
+
+async function init(){
+  const trips=await api.get('/trips');
+  const sel=document.getElementById('trip-select');
+  trips.forEach(t=>{ const o=document.createElement('option');o.value=t.id;o.textContent=t.name;sel.appendChild(o); });
+  const urlId=getParam('id');
+  if(urlId){ sel.value=urlId; loadItems(); }
+}
+
+async function loadItems(){
+  const tid=document.getElementById('trip-select').value;
+  if(!tid){ document.getElementById('items-container').innerHTML=''; document.getElementById('progress-section').classList.add('hidden'); return; }
+  try{
+    allItems=await api.get(`/packing?trip_id=${tid}`);
+    render();
+  } catch(e){ showToast(e.message,'error'); }
+}
+
+function render(){
+  document.getElementById('progress-section').classList.remove('hidden');
+  const packed=allItems.filter(i=>i.is_packed).length;
+  const pct=allItems.length?Math.round(packed/allItems.length*100):0;
+  document.getElementById('progress-bar').style.width=pct+'%';
+  document.getElementById('progress-label').textContent=pct+'% packed';
+
+  // Group by category
+  const groups={};
+  allItems.forEach(i=>{ if(!groups[i.category]) groups[i.category]=[]; groups[i.category].push(i); });
+  const c=document.getElementById('items-container');
+  if(!allItems.length){ c.innerHTML='<div class="card card-body" style="text-align:center;padding:3rem"><div style="font-size:3rem">🧳</div><h3 class="mt-2">Empty checklist</h3><p class="text-muted mt-1">Add items to start packing</p></div>'; return; }
+
+  c.innerHTML=Object.entries(groups).map(([cat,items])=>`
+    <div class="card card-body mb-2">
+      <h3 class="mb-2">${catIcons[cat]||'📦'} ${cat.charAt(0).toUpperCase()+cat.slice(1)}</h3>
+      <div class="flex flex-col gap-1">
+        ${items.map(item=>`
+          <div class="checklist-item ${item.is_packed?'packed':''}" id="item-${item.id}">
+            <input type="checkbox" class="checklist-check" ${item.is_packed?'checked':''} onchange="toggleItem(${item.id})"/>
+            <div class="item-name">${item.name}</div>
+            <button onclick="deleteItem(${item.id})" class="btn btn-ghost btn-sm btn-icon"><i class="fa-solid fa-xmark" style="color:var(--red)"></i></button>
+          </div>`).join('')}
+      </div>
+    </div>`).join('');
+}
+
+async function toggleItem(id){
+  try{ const updated=await api.patch(`/packing/${id}/toggle`,{}); const i=allItems.find(x=>x.id===id); if(i) i.is_packed=updated.is_packed; render(); }
+  catch(e){ showToast(e.message,'error'); }
+}
+async function deleteItem(id){
+  try{ await api.delete(`/packing/${id}`); allItems=allItems.filter(x=>x.id!==id); render(); showToast('Removed','success'); }
+  catch(e){ showToast(e.message,'error'); }
+}
+async function resetAll(){
+  const tid=document.getElementById('trip-select').value;
+  if(!tid) return;
+  try{ await api.delete(`/packing/reset/${tid}`); allItems.forEach(i=>i.is_packed=0); render(); showToast('Checklist reset','success'); }
+  catch(e){ showToast(e.message,'error'); }
+}
+function openAddModal(){ document.getElementById('add-modal').classList.add('open'); }
+function closeAddModal(){ document.getElementById('add-modal').classList.remove('open'); }
+async function saveItem(){
+  const tid=document.getElementById('trip-select').value;
+  const name=document.getElementById('item-name').value.trim();
+  if(!tid||!name) return showToast('Select trip and enter item name','error');
+  try{
+    const item=await api.post('/packing',{ trip_id:tid,name,category:document.getElementById('item-cat').value });
+    allItems.push(item); render(); closeAddModal(); document.getElementById('item-name').value='';
+    showToast('Item added','success');
+  } catch(e){ showToast(e.message,'error'); }
+}
+init();
+</script>
+</body>
+</html>

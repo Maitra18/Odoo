@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Activity Search – Traveloop</title>
+<meta name="description" content="Browse and discover activities to enrich your travel itinerary."/>
+<link rel="stylesheet" href="css/style.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+</head>
+<body>
+<div class="page-wrap">
+  <div id="sidebar-mount"></div>
+  <main class="main-content page-enter">
+    <div class="topbar">
+      <div class="topbar-title">
+        <h1>Activity Search 🧭</h1>
+        <span class="topbar-sub">Find things to do across all cities</span>
+      </div>
+    </div>
+
+    <div class="card card-body mb-3">
+      <div class="flex gap-2" style="flex-wrap:wrap;align-items:flex-end">
+        <div style="flex:1;min-width:200px">
+          <label class="form-label">City</label>
+          <select id="city-filter" onchange="loadActivities()"><option value="">All Cities</option></select>
+        </div>
+        <div style="min-width:160px">
+          <label class="form-label">Type</label>
+          <select id="type-filter" onchange="loadActivities()">
+            <option value="">All Types</option>
+            <option value="sightseeing">🏛️ Sightseeing</option>
+            <option value="food">🍽️ Food</option>
+            <option value="adventure">🏔️ Adventure</option>
+            <option value="culture">🎭 Culture</option>
+            <option value="shopping">🛍️ Shopping</option>
+            <option value="nightlife">🌙 Nightlife</option>
+            <option value="nature">🌿 Nature</option>
+          </select>
+        </div>
+        <div style="min-width:140px">
+          <label class="form-label">Max Cost ($)</label>
+          <input type="number" id="max-cost" placeholder="Any" min="0" oninput="loadActivities()"/>
+        </div>
+      </div>
+    </div>
+
+    <div id="activities-grid" class="grid grid-3"></div>
+  </main>
+</div>
+<div id="toast-container"></div>
+<script src="js/api.js"></script><script src="js/auth.js"></script><script src="js/ui.js"></script>
+<script>
+auth.requireAuth();
+document.getElementById('sidebar-mount').innerHTML = buildSidebar('activities');
+const typeColors={sightseeing:'var(--primary)',food:'var(--green)',adventure:'var(--red)',culture:'var(--purple)',shopping:'var(--cyan)',nightlife:'var(--yellow)',nature:'#22C55E'};
+const typeIcons={sightseeing:'🏛️',food:'🍽️',adventure:'🏔️',culture:'🎭',shopping:'🛍️',nightlife:'🌙',nature:'🌿'};
+
+async function init(){
+  const cities=await api.get('/cities?search=');
+  const sel=document.getElementById('city-filter');
+  cities.forEach(c=>{ const o=document.createElement('option'); o.value=c.id; o.textContent=`${c.name}, ${c.country}`; sel.appendChild(o); });
+  loadActivities();
+}
+
+async function loadActivities(){
+  const cityId=document.getElementById('city-filter').value;
+  const type=document.getElementById('type-filter').value;
+  const maxCost=document.getElementById('max-cost').value;
+  if(!cityId){ document.getElementById('activities-grid').innerHTML='<p class="text-muted" style="grid-column:1/-1">Select a city to browse activities.</p>'; return; }
+  try{
+    let ep=`/cities/${cityId}/activities?`;
+    if(type) ep+=`type=${type}&`;
+    if(maxCost) ep+=`maxCost=${maxCost}`;
+    const acts=await api.get(ep);
+    const g=document.getElementById('activities-grid');
+    if(!acts.length){ g.innerHTML='<p class="text-muted" style="grid-column:1/-1">No activities match your filters.</p>'; return; }
+    g.innerHTML=acts.map(a=>`
+      <div class="card" style="overflow:hidden">
+        ${a.image_url?`<img src="${a.image_url}" alt="${a.name}" class="card-img"/>`:'<div style="height:140px;background:linear-gradient(135deg,'+typeColors[a.type]+' 0%,transparent 100%);display:flex;align-items:center;justify-content:center;font-size:3rem">'+typeIcons[a.type]+'</div>'}
+        <div class="card-body">
+          <div class="flex items-center justify-between mb-1">
+            <h4>${a.name}</h4>
+            <span class="badge" style="background:rgba(0,0,0,.2);color:${typeColors[a.type]}">${typeIcons[a.type]} ${a.type}</span>
+          </div>
+          <p class="text-muted text-sm mb-2" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${a.description||'No description available.'}</p>
+          <div class="flex gap-1">
+            <span class="badge badge-green">⏱ ${a.duration} min</span>
+            <span class="badge badge-orange">💲 ₹${parseFloat(a.cost||0).toFixed(2)}</span>
+          </div>
+        </div>
+      </div>`).join('');
+  } catch(e){ showToast(e.message,'error'); }
+}
+init();
+</script>
+</body>
+</html>

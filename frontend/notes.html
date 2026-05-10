@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Notes – Traveloop</title>
+<meta name="description" content="Write and manage trip notes and journal entries in Traveloop."/>
+<link rel="stylesheet" href="css/style.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+</head>
+<body>
+<div class="page-wrap">
+  <div id="sidebar-mount"></div>
+  <main class="main-content page-enter">
+    <div class="topbar">
+      <div class="topbar-title">
+        <h1>Trip Notes 📝</h1>
+        <span class="topbar-sub">Your personal journal for each adventure</span>
+      </div>
+      <div class="topbar-actions">
+        <select id="trip-select" onchange="loadNotes()" style="min-width:200px;padding:.6rem 1rem">
+          <option value="">— Select Trip —</option>
+        </select>
+        <button class="btn btn-primary" onclick="openNoteModal()"><i class="fa-solid fa-plus"></i> New Note</button>
+      </div>
+    </div>
+
+    <div id="notes-grid" class="grid grid-3"></div>
+    <div id="empty-notes" class="hidden" style="text-align:center;padding:4rem">
+      <div style="font-size:4rem">📓</div>
+      <h3 class="mt-2">No notes yet</h3>
+      <p class="text-muted mt-1 mb-3">Write your first trip note or reminder</p>
+      <button class="btn btn-primary" onclick="openNoteModal()">Write First Note</button>
+    </div>
+  </main>
+</div>
+
+<!-- Note Editor Modal -->
+<div class="modal-overlay" id="note-modal">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <h3 id="note-modal-title">New Note</h3>
+      <button class="modal-close" onclick="closeNoteModal()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="flex flex-col gap-2">
+      <div class="form-group"><label class="form-label">Title</label><input id="note-title" placeholder="Note title…"/></div>
+      <div class="form-group">
+        <label class="form-label">Linked Stop (optional)</label>
+        <select id="note-stop"><option value="">— General Trip Note —</option></select>
+      </div>
+      <div class="form-group"><label class="form-label">Content *</label><textarea id="note-content" rows="6" placeholder="Write your note, reminder, or journal entry…"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeNoteModal()">Cancel</button>
+      <button class="btn btn-primary" id="note-save-btn" onclick="saveNote()"><i class="fa-solid fa-floppy-disk"></i> Save</button>
+    </div>
+  </div>
+</div>
+<div id="toast-container"></div>
+<script src="js/api.js"></script><script src="js/auth.js"></script><script src="js/ui.js"></script>
+<script>
+auth.requireAuth();
+document.getElementById('sidebar-mount').innerHTML = buildSidebar('notes');
+let editId=null, notes=[];
+const noteColors=['rgba(249,115,22,.1)','rgba(6,182,212,.1)','rgba(139,92,246,.1)','rgba(16,185,129,.1)','rgba(245,158,11,.1)'];
+
+async function init(){
+  const trips=await api.get('/trips');
+  const sel=document.getElementById('trip-select');
+  trips.forEach(t=>{ const o=document.createElement('option');o.value=t.id;o.textContent=t.name;sel.appendChild(o); });
+  const urlId=getParam('id');
+  if(urlId){ sel.value=urlId; loadNotes(); }
+}
+
+async function loadNotes(){
+  const tid=document.getElementById('trip-select').value;
+  if(!tid){ document.getElementById('notes-grid').innerHTML=''; document.getElementById('empty-notes').classList.add('hidden'); return; }
+  try{
+    notes=await api.get(`/notes?trip_id=${tid}`);
+    // Load stops for the select
+    const stops=await api.get(`/stops?trip_id=${tid}`);
+    const stopSel=document.getElementById('note-stop');
+    stopSel.innerHTML='<option value="">— General Trip Note —</option>';
+    stops.forEach(s=>{ const o=document.createElement('option');o.value=s.id;o.textContent=`📍 ${s.city}`;stopSel.appendChild(o); });
+    render();
+  } catch(e){ showToast(e.message,'error'); }
+}
+
+function render(){
+  const g=document.getElementById('notes-grid');
+  const emp=document.getElementById('empty-notes');
+  if(!notes.length){ g.innerHTML=''; emp.classList.remove('hidden'); return; }
+  emp.classList.add('hidden');
+  g.innerHTML=notes.map((n,i)=>`
+    <div class="card" style="background:${noteColors[i%noteColors.length]};cursor:pointer" onclick="openEditNote(${n.id})">
+      <div class="card-body">
+        <div class="flex items-center justify-between mb-1">
+          <h4>${n.title||'Untitled'}</h4>
+          <button onclick="event.stopPropagation();deleteNote(${n.id})" class="btn btn-ghost btn-sm btn-icon"><i class="fa-solid fa-trash" style="color:var(--red)"></i></button>
+        </div>
+        ${n.stop_city?`<span class="badge badge-cyan text-xs mb-1">📍 ${n.stop_city}</span>`:''}
+        <p class="text-muted text-sm" style="display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden">${n.content}</p>
+        <div class="text-xs text-muted mt-2">${new Date(n.created_at).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
+      </div>
+    </div>`).join('');
+}
+
+function openNoteModal(){ editId=null; document.getElementById('note-modal-title').textContent='New Note'; document.getElementById('note-title').value=''; document.getElementById('note-content').value=''; document.getElementById('note-modal').classList.add('open'); }
+function closeNoteModal(){ document.getElementById('note-modal').classList.remove('open'); }
+function openEditNote(id){
+  const n=notes.find(x=>x.id===id); if(!n) return;
+  editId=id;
+  document.getElementById('note-modal-title').textContent='Edit Note';
+  document.getElementById('note-title').value=n.title||'';
+  document.getElementById('note-content').value=n.content||'';
+  document.getElementById('note-stop').value=n.stop_id||'';
+  document.getElementById('note-modal').classList.add('open');
+}
+async function saveNote(){
+  const content=document.getElementById('note-content').value.trim();
+  const tid=document.getElementById('trip-select').value;
+  if(!content||!tid) return showToast('Content and trip required','error');
+  try{
+    if(editId){
+      await api.put(`/notes/${editId}`,{ title:document.getElementById('note-title').value,content });
+      showToast('Note updated','success');
+    } else {
+      await api.post('/notes',{ trip_id:tid,stop_id:document.getElementById('note-stop').value||null,title:document.getElementById('note-title').value,content });
+      showToast('Note saved','success');
+    }
+    closeNoteModal(); loadNotes();
+  } catch(e){ showToast(e.message,'error'); }
+}
+async function deleteNote(id){
+  try{ await api.delete(`/notes/${id}`); notes=notes.filter(n=>n.id!==id); render(); showToast('Note deleted','success'); }
+  catch(e){ showToast(e.message,'error'); }
+}
+init();
+</script>
+</body>
+</html>

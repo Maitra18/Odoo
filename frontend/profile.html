@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Profile – Traveloop</title>
+<meta name="description" content="Manage your Traveloop profile, preferences and account settings."/>
+<link rel="stylesheet" href="css/style.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+</head>
+<body>
+<div class="page-wrap">
+  <div id="sidebar-mount"></div>
+  <main class="main-content page-enter" style="max-width:780px">
+    <div class="topbar">
+      <div class="topbar-title">
+        <h1>Profile & Settings ⚙️</h1>
+        <span class="topbar-sub">Manage your account and preferences</span>
+      </div>
+    </div>
+
+    <!-- Avatar card -->
+    <div class="card card-body mb-3">
+      <div class="flex items-center gap-3">
+        <div id="big-avatar" style="width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:1.8rem;font-weight:700;color:#fff;flex-shrink:0"></div>
+        <div>
+          <h2 id="profile-name-display">…</h2>
+          <p class="text-muted text-sm" id="profile-email-display">…</p>
+          <div class="flex gap-1 mt-1">
+            <span class="badge badge-orange" id="profile-role-badge"></span>
+            <span class="badge badge-cyan" id="profile-joined"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit form -->
+    <div class="card card-body mb-3">
+      <h3 class="mb-3">Edit Profile</h3>
+      <form id="profile-form" onsubmit="saveProfile(event)" class="flex flex-col gap-2">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Full Name</label>
+            <input id="edit-name" placeholder="Your name"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Language</label>
+            <select id="edit-lang">
+              <option value="en">🇬🇧 English</option>
+              <option value="hi">🇮🇳 Hindi</option>
+              <option value="fr">🇫🇷 French</option>
+              <option value="es">🇪🇸 Spanish</option>
+              <option value="de">🇩🇪 German</option>
+              <option value="ja">🇯🇵 Japanese</option>
+            </select>
+          </div>
+        </div>
+        <div id="profile-success" class="alert alert-success hidden"></div>
+        <div style="text-align:right">
+          <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Stats -->
+    <div class="card card-body mb-3">
+      <h3 class="mb-3">Your Stats</h3>
+      <div class="grid grid-3" id="profile-stats">
+        <div class="skeleton" style="height:70px;border-radius:var(--radius-sm)"></div>
+        <div class="skeleton" style="height:70px;border-radius:var(--radius-sm)"></div>
+        <div class="skeleton" style="height:70px;border-radius:var(--radius-sm)"></div>
+      </div>
+    </div>
+
+    <!-- Danger zone -->
+    <div class="card card-body" style="border-color:rgba(239,68,68,.3)">
+      <h3 style="color:var(--red)" class="mb-2">⚠️ Danger Zone</h3>
+      <p class="text-muted text-sm mb-3">Deleting your account will permanently remove all your trips, itineraries, and data. This cannot be undone.</p>
+      <button class="btn btn-danger" onclick="confirmDelete()"><i class="fa-solid fa-trash"></i> Delete My Account</button>
+    </div>
+  </main>
+</div>
+<div id="toast-container"></div>
+<script src="js/api.js"></script><script src="js/auth.js"></script><script src="js/ui.js"></script>
+<script>
+auth.requireAuth();
+document.getElementById('sidebar-mount').innerHTML = buildSidebar('profile');
+
+async function init(){
+  try{
+    const user=await api.get('/auth/me');
+    const initials=user.name.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2);
+    document.getElementById('big-avatar').textContent=initials;
+    document.getElementById('profile-name-display').textContent=user.name;
+    document.getElementById('profile-email-display').textContent=user.email;
+    document.getElementById('profile-role-badge').textContent=user.role==='admin'?'⭐ Admin':'🧳 Traveler';
+    document.getElementById('profile-joined').textContent='Joined '+fmtDate(user.created_at);
+    document.getElementById('edit-name').value=user.name;
+    document.getElementById('edit-lang').value=user.language||'en';
+
+    const trips=await api.get('/trips');
+    const totalBudget=trips.reduce((s,t)=>s+parseFloat(t.total_budget||0),0);
+    const totalStops=trips.reduce((s,t)=>s+parseInt(t.stop_count||0),0);
+    document.getElementById('profile-stats').innerHTML=`
+      <div style="background:var(--bg3);border-radius:var(--radius-sm);padding:1rem;text-align:center">
+        <div style="font-size:1.8rem;font-weight:800;color:var(--primary)">${trips.length}</div>
+        <div class="text-muted text-sm">Trips Created</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:var(--radius-sm);padding:1rem;text-align:center">
+        <div style="font-size:1.8rem;font-weight:800;color:var(--cyan)">${totalStops}</div>
+        <div class="text-muted text-sm">Cities Planned</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:var(--radius-sm);padding:1rem;text-align:center">
+        <div style="font-size:1.8rem;font-weight:800;color:var(--green)">${fmtMoney(totalBudget)}</div>
+        <div class="text-muted text-sm">Total Budgeted</div>
+      </div>`;
+  } catch(e){ showToast(e.message,'error'); }
+}
+
+async function saveProfile(e){
+  e.preventDefault();
+  try{
+    await api.put('/auth/profile',{ name:document.getElementById('edit-name').value, language:document.getElementById('edit-lang').value });
+    const s=document.getElementById('profile-success');
+    s.textContent='Profile updated successfully!'; s.classList.remove('hidden');
+    // Update stored user
+    const user=auth.getUser(); user.name=document.getElementById('edit-name').value;
+    localStorage.setItem('traveloop_user',JSON.stringify(user));
+    setTimeout(()=>s.classList.add('hidden'),3000);
+  } catch(e){ showToast(e.message,'error'); }
+}
+
+function confirmDelete(){
+  if(confirm('Are you absolutely sure you want to delete your account? All data will be lost.')){
+    api.delete('/auth/account').then(()=>{ auth.logout(); }).catch(e=>showToast(e.message,'error'));
+  }
+}
+init();
+</script>
+</body>
+</html>

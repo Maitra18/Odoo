@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>My Trips – Traveloop</title>
+<meta name="description" content="View and manage all your Traveloop travel plans."/>
+<link rel="stylesheet" href="css/style.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+</head>
+<body>
+<div class="page-wrap">
+  <div id="sidebar-mount"></div>
+  <main class="main-content page-enter">
+    <div class="topbar">
+      <div class="topbar-title">
+        <h1>My Trips 🗺️</h1>
+        <span class="topbar-sub">All your adventures in one place</span>
+      </div>
+      <div class="topbar-actions">
+        <div class="search-bar" style="width:220px">
+          <i class="fa-solid fa-search"></i>
+          <input type="text" id="search-input" placeholder="Search trips…" oninput="filterTrips()"/>
+        </div>
+        <a href="create-trip.html" class="btn btn-primary"><i class="fa-solid fa-plus"></i> New Trip</a>
+      </div>
+    </div>
+
+    <div id="trips-grid" class="grid grid-3">
+      <div class="skeleton" style="height:240px;border-radius:14px"></div>
+      <div class="skeleton" style="height:240px;border-radius:14px"></div>
+      <div class="skeleton" style="height:240px;border-radius:14px"></div>
+    </div>
+    <div id="empty-state" class="hidden" style="text-align:center;padding:4rem 1rem">
+      <div style="font-size:4rem;margin-bottom:1rem">🧳</div>
+      <h2>No trips yet</h2>
+      <p class="text-muted mt-1 mb-3">Start planning your first adventure</p>
+      <a href="create-trip.html" class="btn btn-primary btn-lg">Create Your First Trip</a>
+    </div>
+  </main>
+</div>
+
+<!-- Delete confirm modal -->
+<div class="modal-overlay" id="del-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Delete Trip?</h3>
+      <button class="modal-close" onclick="closeDelModal()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <p class="text-muted">This will permanently delete the trip and all its stops, activities, and budget entries. This action cannot be undone.</p>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeDelModal()">Cancel</button>
+      <button class="btn btn-danger" id="confirm-del-btn" onclick="confirmDelete()"><i class="fa-solid fa-trash"></i> Delete</button>
+    </div>
+  </div>
+</div>
+<div id="toast-container"></div>
+<script src="js/api.js"></script><script src="js/auth.js"></script><script src="js/ui.js"></script>
+<script>
+auth.requireAuth();
+document.getElementById('sidebar-mount').innerHTML = buildSidebar('trips');
+let allTrips = [], delId = null;
+
+async function loadTrips() {
+  try {
+    allTrips = await api.get('/trips');
+    renderTrips(allTrips);
+  } catch (e) { showToast(e.message, 'error'); }
+}
+
+function renderTrips(trips) {
+  const grid = document.getElementById('trips-grid');
+  const empty = document.getElementById('empty-state');
+  if (!trips.length) { grid.innerHTML = ''; empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+  grid.innerHTML = trips.map(t => {
+    const imgStyle = t.cover_photo
+      ? `background:url('${t.cover_photo}') center/cover no-repeat;`
+      : `background:linear-gradient(135deg,var(--primary),var(--cyan));`;
+    const status = t.start_date && new Date(t.start_date) > new Date() ? 'upcoming' : 'past';
+    return `
+    <div class="card" style="overflow:hidden">
+      <div style="${imgStyle}height:150px;position:relative">
+        <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.6),transparent)"></div>
+        <div style="position:absolute;bottom:.75rem;left:1rem">
+          <span class="badge ${status==='upcoming'?'badge-green':'badge-cyan'}">${status==='upcoming'?'Upcoming':'Past'}</span>
+        </div>
+        ${t.is_public ? '<div style="position:absolute;top:.75rem;right:.75rem"><span class="badge badge-orange"><i class="fa-solid fa-globe"></i> Public</span></div>' : ''}
+      </div>
+      <div class="card-body">
+        <h3 style="margin-bottom:.25rem">${t.name}</h3>
+        <div class="text-muted text-sm mb-2">${fmtDate(t.start_date)} → ${fmtDate(t.end_date)}</div>
+        <div class="flex gap-1 mb-2">
+          <span class="badge badge-purple"><i class="fa-solid fa-location-dot"></i> ${t.stop_count} stops</span>
+          <span class="badge badge-orange"><i class="fa-solid fa-wallet"></i> ${fmtMoney(t.total_budget)}</span>
+        </div>
+        <div class="flex gap-1" style="flex-wrap:wrap">
+          <a href="itinerary-view.html?id=${t.id}" class="btn btn-cyan btn-sm"><i class="fa-solid fa-eye"></i> View</a>
+          <a href="itinerary-builder.html?id=${t.id}" class="btn btn-secondary btn-sm"><i class="fa-solid fa-pen"></i> Edit</a>
+          <a href="budget.html?id=${t.id}" class="btn btn-secondary btn-sm"><i class="fa-solid fa-wallet"></i></a>
+          <a href="packing.html?id=${t.id}" class="btn btn-secondary btn-sm"><i class="fa-solid fa-box"></i></a>
+          <button onclick="openDelModal(${t.id})" class="btn btn-danger btn-sm btn-icon"><i class="fa-solid fa-trash"></i></button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function filterTrips() {
+  const q = document.getElementById('search-input').value.toLowerCase();
+  renderTrips(allTrips.filter(t => t.name.toLowerCase().includes(q)));
+}
+
+function openDelModal(id) { delId = id; document.getElementById('del-modal').classList.add('open'); }
+function closeDelModal() { delId = null; document.getElementById('del-modal').classList.remove('open'); }
+async function confirmDelete() {
+  try {
+    await api.delete(`/trips/${delId}`);
+    showToast('Trip deleted', 'success');
+    closeDelModal();
+    loadTrips();
+  } catch (e) { showToast(e.message, 'error'); }
+}
+loadTrips();
+</script>
+</body>
+</html>

@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Budget – Traveloop</title>
+<meta name="description" content="Track and manage your travel budget with cost breakdowns and charts."/>
+<link rel="stylesheet" href="css/style.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<div class="page-wrap">
+  <div id="sidebar-mount"></div>
+  <main class="main-content page-enter">
+    <div class="topbar">
+      <div class="topbar-title">
+        <h1>Budget Tracker 💰</h1>
+        <span class="topbar-sub" id="budget-trip-name">Select a trip to view budget</span>
+      </div>
+      <div class="topbar-actions">
+        <select id="trip-select" onchange="loadBudget()" style="min-width:200px;padding:.6rem 1rem">
+          <option value="">— Select Trip —</option>
+        </select>
+        <button class="btn btn-primary" onclick="openAddEntry()"><i class="fa-solid fa-plus"></i> Add Entry</button>
+      </div>
+    </div>
+
+    <!-- Summary stats -->
+    <div class="grid grid-4 mb-3" id="budget-stats"></div>
+
+    <div class="grid grid-2 mb-3">
+      <div class="card card-body">
+        <h3 class="mb-2">Spending by Category</h3>
+        <div class="chart-wrap"><canvas id="pie-chart"></canvas></div>
+      </div>
+      <div class="card card-body">
+        <h3 class="mb-2">Category Breakdown</h3>
+        <div id="category-list"></div>
+      </div>
+    </div>
+
+    <div class="card card-body">
+      <h3 class="mb-2">All Entries</h3>
+      <div id="entries-list"></div>
+    </div>
+  </main>
+</div>
+
+<!-- Add Entry Modal -->
+<div class="modal-overlay" id="entry-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Add Budget Entry</h3>
+      <button class="modal-close" onclick="closeEntryModal()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="flex flex-col gap-2">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Category</label>
+          <select id="entry-cat">
+            <option value="transport">✈️ Transport</option>
+            <option value="stay">🏨 Stay</option>
+            <option value="activities">🎯 Activities</option>
+            <option value="meals">🍽️ Meals</option>
+            <option value="misc">📦 Misc</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Amount ($) *</label>
+          <input type="number" id="entry-amount" placeholder="0.00" min="0" step="0.01" required/>
+        </div>
+      </div>
+      <div class="form-group"><label class="form-label">Date</label><input type="date" id="entry-date"/></div>
+      <div class="form-group"><label class="form-label">Notes</label><input id="entry-notes" placeholder="e.g. Flight LHR→CDG"/></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeEntryModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEntry()"><i class="fa-solid fa-floppy-disk"></i> Add</button>
+    </div>
+  </div>
+</div>
+<div id="toast-container"></div>
+<script src="js/api.js"></script><script src="js/auth.js"></script><script src="js/ui.js"></script>
+<script>
+auth.requireAuth();
+document.getElementById('sidebar-mount').innerHTML = buildSidebar('budget');
+let pieChart=null;
+const catColors={transport:'#F97316',stay:'#06B6D4',activities:'#8B5CF6',meals:'#10B981',misc:'#94A3B8'};
+const catIcons={transport:'✈️',stay:'🏨',activities:'🎯',meals:'🍽️',misc:'📦'};
+
+async function init(){
+  const trips=await api.get('/trips');
+  const sel=document.getElementById('trip-select');
+  trips.forEach(t=>{ const o=document.createElement('option');o.value=t.id;o.textContent=t.name;sel.appendChild(o); });
+  const urlId=getParam('id');
+  if(urlId){ sel.value=urlId; loadBudget(); }
+}
+
+async function loadBudget(){
+  const tid=document.getElementById('trip-select').value;
+  if(!tid){ document.getElementById('budget-stats').innerHTML=''; return; }
+  try{
+    const data=await api.get(`/budget?trip_id=${tid}`);
+    const total=data.entries.reduce((s,e)=>s+parseFloat(e.amount),0);
+    const avgDay=data.entries.length?total/data.entries.length:0;
+
+    document.getElementById('budget-stats').innerHTML=`
+      <div class="stat-card"><div class="stat-icon orange"><i class="fa-solid fa-coins"></i></div><div><div class="stat-value">${fmtMoney(total)}</div><div class="stat-label">Total Spent</div></div></div>
+      <div class="stat-card"><div class="stat-icon cyan"><i class="fa-solid fa-receipt"></i></div><div><div class="stat-value">${data.entries.length}</div><div class="stat-label">Entries</div></div></div>
+      <div class="stat-card"><div class="stat-icon purple"><i class="fa-solid fa-calendar-day"></i></div><div><div class="stat-value">${fmtMoney(avgDay)}</div><div class="stat-label">Avg per Entry</div></div></div>
+      <div class="stat-card"><div class="stat-icon green"><i class="fa-solid fa-star"></i></div><div><div class="stat-value">${fmtMoney(data.activities_total)}</div><div class="stat-label">Activity Costs</div></div></div>`;
+
+    // Pie chart
+    if(pieChart) pieChart.destroy();
+    const labels=data.summary.map(s=>catIcons[s.category]+' '+s.category);
+    const vals=data.summary.map(s=>parseFloat(s.total));
+    const colors=data.summary.map(s=>catColors[s.category]||'#ccc');
+    pieChart=new Chart(document.getElementById('pie-chart'),{
+      type:'doughnut',
+      data:{labels,datasets:[{data:vals,backgroundColor:colors,borderColor:'rgba(255,255,255,.05)',borderWidth:2}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#94A3B8',padding:12}}}}
+    });
+
+    // Category list
+    document.getElementById('category-list').innerHTML=data.summary.length?data.summary.map(s=>`
+      <div class="flex items-center justify-between" style="padding:.6rem 0;border-bottom:1px solid var(--border)">
+        <div class="flex items-center gap-1">
+          <div style="width:12px;height:12px;border-radius:50%;background:${catColors[s.category]||'#ccc'};flex-shrink:0"></div>
+          <span>${catIcons[s.category]||''} ${s.category}</span>
+        </div>
+        <strong>${fmtMoney(s.total)}</strong>
+      </div>`).join(''):'<p class="text-muted text-sm">No entries yet</p>';
+
+    // Entries list
+    document.getElementById('entries-list').innerHTML=data.entries.length?`
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr style="border-bottom:1px solid var(--border)">
+          <th style="text-align:left;padding:.5rem;color:var(--text2);font-weight:600;font-size:.85rem">Category</th>
+          <th style="text-align:left;padding:.5rem;color:var(--text2);font-weight:600;font-size:.85rem">Notes</th>
+          <th style="text-align:left;padding:.5rem;color:var(--text2);font-weight:600;font-size:.85rem">Date</th>
+          <th style="text-align:right;padding:.5rem;color:var(--text2);font-weight:600;font-size:.85rem">Amount</th>
+          <th></th>
+        </tr></thead>
+        <tbody>${data.entries.map(e=>`
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:.6rem .5rem"><span class="badge badge-orange">${catIcons[e.category]||''} ${e.category}</span></td>
+            <td style="padding:.6rem .5rem;font-size:.9rem">${e.notes||'—'}</td>
+            <td style="padding:.6rem .5rem;font-size:.875rem;color:var(--text2)">${fmtDate(e.entry_date)}</td>
+            <td style="padding:.6rem .5rem;text-align:right;font-weight:700;color:var(--primary)">${fmtMoney(e.amount)}</td>
+            <td style="padding:.6rem .5rem;text-align:right"><button onclick="deleteEntry(${e.id})" class="btn btn-ghost btn-sm btn-icon"><i class="fa-solid fa-trash" style="color:var(--red)"></i></button></td>
+          </tr>`).join('')}</tbody>
+      </table>`:'<p class="text-muted text-sm">No budget entries. Add one above.</p>';
+  } catch(e){ showToast(e.message,'error'); }
+}
+
+function openAddEntry(){ document.getElementById('entry-modal').classList.add('open'); }
+function closeEntryModal(){ document.getElementById('entry-modal').classList.remove('open'); }
+async function saveEntry(){
+  const amount=document.getElementById('entry-amount').value;
+  const tid=document.getElementById('trip-select').value;
+  if(!amount||!tid) return showToast('Select a trip and enter amount','error');
+  try{
+    await api.post('/budget',{ trip_id:tid,category:document.getElementById('entry-cat').value,amount,notes:document.getElementById('entry-notes').value,entry_date:document.getElementById('entry-date').value||null });
+    closeEntryModal(); loadBudget(); showToast('Entry added','success');
+    document.getElementById('entry-amount').value=''; document.getElementById('entry-notes').value='';
+  } catch(e){ showToast(e.message,'error'); }
+}
+async function deleteEntry(id){
+  try{ await api.delete(`/budget/${id}`); loadBudget(); showToast('Entry deleted','success'); }
+  catch(e){ showToast(e.message,'error'); }
+}
+init();
+</script>
+</body>
+</html>

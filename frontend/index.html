@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Traveloop – Sign In</title>
+  <meta name="description"
+    content="Sign in or create your Traveloop account to start planning personalized travel itineraries." />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+</head>
+
+<body>
+  <div class="auth-page">
+    <div class="auth-bg"></div>
+
+    <!-- Left panel -->
+    <div class="auth-left">
+      <div class="auth-brand text-gradient">✈️ Traveloop</div>
+      <h1 style="text-align:center;max-width:380px;">Plan Smarter.<br />Travel Further.</h1>
+      <p class="auth-tagline mt-2">Your intelligent companion for building stunning multi-city itineraries, managing
+        budgets, and sharing adventures.</p>
+      <div class="auth-features">
+        <div class="auth-feature">
+          <div class="auth-feature-icon" style="background:rgba(249,115,22,.15);color:var(--primary)"><i
+              class="fa-solid fa-route"></i></div>
+          <div>
+            <div style="font-weight:600">Multi-city Itineraries</div>
+            <div class="text-muted text-sm">Design day-by-day plans across multiple destinations</div>
+          </div>
+        </div>
+        <div class="auth-feature">
+          <div class="auth-feature-icon" style="background:rgba(6,182,212,.15);color:var(--cyan)"><i
+              class="fa-solid fa-wallet"></i></div>
+          <div>
+            <div style="font-weight:600">Smart Budget Tracking</div>
+            <div class="text-muted text-sm">Automatic cost breakdowns and budget alerts</div>
+          </div>
+        </div>
+        <div class="auth-feature">
+          <div class="auth-feature-icon" style="background:rgba(139,92,246,.15);color:var(--purple)"><i
+              class="fa-solid fa-share-nodes"></i></div>
+          <div>
+            <div style="font-weight:600">Share Your Journey</div>
+            <div class="text-muted text-sm">Publish itineraries and inspire fellow travelers</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right panel -->
+    <div class="auth-right">
+
+      <!-- Server status banner -->
+      <div id="server-status" class="alert alert-info mb-3" style="display:none">
+        <i class="fa-solid fa-circle-info"></i>
+        <span id="server-status-msg">Connecting to server…</span>
+      </div>
+
+      <h2 style="margin-bottom:.5rem">Welcome to Traveloop 👋</h2>
+      <p class="text-muted mb-3">Sign in to continue your adventure</p>
+
+      <!-- Tab buttons -->
+      <div class="tab-btns">
+        <button class="tab-btn active" id="tab-login" onclick="switchTab('login')">Sign In</button>
+        <button class="tab-btn" id="tab-signup" onclick="switchTab('signup')">Sign Up</button>
+      </div>
+
+      <!-- ── Login Form ── -->
+      <form id="login-form" class="auth-form" onsubmit="handleLogin(event)">
+        <div class="form-group">
+          <label class="form-label">Email Address</label>
+          <input type="email" id="login-email" placeholder="you@example.com" required autocomplete="email" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <div style="position:relative">
+            <input type="password" id="login-pass" placeholder="••••••••" required autocomplete="current-password"
+              style="padding-right:3rem" />
+            <button type="button" onclick="togglePass('login-pass',this)"
+              style="position:absolute;right:.75rem;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:.9rem">
+              <i class="fa-solid fa-eye" id="login-eye"></i>
+            </button>
+          </div>
+        </div>
+        <div id="login-error" class="alert alert-error hidden"></div>
+        <button type="submit" class="btn btn-primary btn-lg w-full" id="login-btn">
+          <i class="fa-solid fa-right-to-bracket"></i> Sign In
+        </button>
+        <p class="text-sm text-muted" style="text-align:center">
+          Don't have an account? <a href="#" onclick="switchTab('signup')"
+            style="color:var(--primary);font-weight:600">Sign up free</a>
+        </p>
+      </form>
+
+      <!-- ── Signup Form ── -->
+      <form id="signup-form" class="auth-form hidden" onsubmit="handleSignup(event)">
+        <div class="form-group">
+          <label class="form-label">Full Name</label>
+          <input type="text" id="reg-name" placeholder="John Doe" required autocomplete="name" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email Address</label>
+          <input type="email" id="reg-email" placeholder="you@example.com" required autocomplete="email" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <div style="position:relative">
+            <input type="password" id="reg-pass" placeholder="Min. 6 characters" minlength="6" required
+              autocomplete="new-password" style="padding-right:3rem" />
+            <button type="button" onclick="togglePass('reg-pass',this)"
+              style="position:absolute;right:.75rem;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:.9rem">
+              <i class="fa-solid fa-eye"></i>
+            </button>
+          </div>
+        </div>
+        <div id="signup-error" class="alert alert-error hidden"></div>
+        <button type="submit" class="btn btn-primary btn-lg w-full" id="signup-btn">
+          <i class="fa-solid fa-user-plus"></i> Create Account
+        </button>
+        <p class="text-sm text-muted" style="text-align:center">
+          Already have an account? <a href="#" onclick="switchTab('login')"
+            style="color:var(--primary);font-weight:600">Sign in</a>
+        </p>
+      </form>
+
+      <!-- Demo credentials hint -->
+      <div class="alert alert-info mt-3">
+        <i class="fa-solid fa-circle-info"></i>
+        <div>
+          <strong>Admin demo:</strong> admin@traveloop.com / Admin@123<br />
+          <span class="text-xs">Make sure the backend server is running on port 5000.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+    // Redirect if already logged in
+    if (auth.isLoggedIn()) window.location.href = 'dashboard.html';
+
+    // ── Switch tabs ───────────────────────────────────────────
+    function switchTab(tab) {
+      const isLogin = tab === 'login';
+      document.getElementById('login-form').classList.toggle('hidden', !isLogin);
+      document.getElementById('signup-form').classList.toggle('hidden', isLogin);
+      document.getElementById('tab-login').classList.toggle('active', isLogin);
+      document.getElementById('tab-signup').classList.toggle('active', !isLogin);
+      document.getElementById('login-error').classList.add('hidden');
+      document.getElementById('signup-error').classList.add('hidden');
+    }
+
+    // ── Toggle password visibility ────────────────────────────
+    function togglePass(inputId, btn) {
+      const inp = document.getElementById(inputId);
+      const isText = inp.type === 'text';
+      inp.type = isText ? 'password' : 'text';
+      btn.querySelector('i').className = isText ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash';
+    }
+
+    // ── Check server status ───────────────────────────────────
+    async function checkServer() {
+      const banner = document.getElementById('server-status');
+      const msg = document.getElementById('server-status-msg');
+      try {
+        const res = await fetch('http://localhost:5000/api/health', { signal: AbortSignal.timeout(3000) });
+        if (res.ok) {
+          // Server OK — hide banner silently
+          banner.style.display = 'none';
+        } else {
+          throw new Error('Server error');
+        }
+      } catch (e) {
+        banner.style.display = 'flex';
+        banner.className = 'alert alert-error mb-3';
+        msg.innerHTML = '⚠️ Backend server is not running. Start it with:<br/><code style="font-size:.78rem">cd backend &amp;&amp; npm start</code> then refresh.';
+      }
+    }
+    checkServer();
+
+    // ── Login ─────────────────────────────────────────────────
+    async function handleLogin(e) {
+      e.preventDefault();
+      const btn = document.getElementById('login-btn');
+      const err = document.getElementById('login-error');
+      const email = document.getElementById('login-email').value.trim();
+      const password = document.getElementById('login-pass').value;
+
+      err.classList.add('hidden');
+      if (!email || !password) {
+        err.textContent = 'Please enter your email and password.';
+        err.classList.remove('hidden');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Signing in…';
+
+      try {
+        const data = await api.post('/auth/login', { email, password });
+        auth.login(data.token, data.user);
+        window.location.href = 'dashboard.html';
+      } catch (ex) {
+        err.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> ' +
+          (ex.message === 'Invalid credentials'
+            ? 'Wrong email or password. Please try again.'
+            : ex.message.includes('fetch') || ex.message.includes('Failed')
+              ? 'Cannot reach the server. Make sure the backend is running on port 5000.'
+              : ex.message);
+        err.classList.remove('hidden');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Sign In';
+      }
+    }
+
+    // ── Signup ────────────────────────────────────────────────
+    async function handleSignup(e) {
+      e.preventDefault();
+      const btn = document.getElementById('signup-btn');
+      const err = document.getElementById('signup-error');
+      const name = document.getElementById('reg-name').value.trim();
+      const email = document.getElementById('reg-email').value.trim();
+      const password = document.getElementById('reg-pass').value;
+
+      err.classList.add('hidden');
+      if (!name || !email || !password) {
+        err.textContent = 'All fields are required.';
+        err.classList.remove('hidden');
+        return;
+      }
+      if (password.length < 6) {
+        err.textContent = 'Password must be at least 6 characters.';
+        err.classList.remove('hidden');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Creating account…';
+
+      try {
+        const data = await api.post('/auth/register', { name, email, password });
+        auth.login(data.token, data.user);
+        window.location.href = 'dashboard.html';
+      } catch (ex) {
+        err.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> ' +
+          (ex.message.includes('already')
+            ? 'This email is already registered. <a href="#" onclick="switchTab(\'login\')" style="color:var(--primary)">Sign in instead?</a>'
+            : ex.message.includes('fetch') || ex.message.includes('Failed')
+              ? 'Cannot reach the server. Make sure the backend is running on port 5000.'
+              : ex.message);
+        err.classList.remove('hidden');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-user-plus"></i> Create Account';
+      }
+    }
+  </script>
+</body>
+
+</html>
